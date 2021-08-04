@@ -1,0 +1,157 @@
+---
+title: "Log Transformation Examples Module 2"
+author: "Brad Price, Ph.D."
+date: "9/1/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Orange Juice
+
+In this file we're going to begin to analyze the price elasticity of orange juice based on brand and price as it relates to sales.  
+
+```{r}
+oj <- read.csv("~/Dropbox/BDS-master/examples/oj.csv")
+oj$brand=as.factor(oj$brand)
+head(oj)
+summary(oj)
+```
+
+Next lets take a look at how the data moves and changes when we start to look at how price relates to sales.  
+```{r}
+## create some colors for the brands
+brandcol <- c("green","red","gold")
+par(mfrow=c(1,3))
+plot(sales ~ price, data=oj, col=brandcol[oj$brand])
+plot(log(sales)~price,data=oj,col=brandcol[oj$brand])
+plot(log(sales) ~ log(price), data=oj, col=brandcol[oj$brand])
+```
+
+In regression in this case we have a few options, we could say that
+
+$$
+Sales=\beta_0+\beta_1Price+\epsilon
+$$
+If we choose to say this Sales change at a linear function of price.  So we interpret $\beta_1$ as the expected change in sales given that $Price$ is increased by 1 dollar (generically we'd say one unit).  The intercept in this case $\beta_0$ is the expected $Sales$ when $Price=0$.  We never observe $Price=0$, and further more do we think this model would describe the behavior of something that is free?  I don't think so, so in this case we'll just say "it's a tuning parameter" which means it just helps us fit the data better.  Let's take a look at what this analysis would look like
+
+```{r}
+m1<-lm(sales~price,data=oj)
+summary(m1)
+```
+Now based on these results we see that we have the intercept equal to $\beta_0=52365$ and the slope $\beta_1=-15357.30$.  So what that means in this case is that for every one dollar increase in price we expect sales to decrease by \$15,357.30. So our prediction equation is
+
+$$
+\widehat{Sales}=52365 -15357.30*Price,
+$$
+where $\widehat{Sales} is the predicted value.  Let's look at this line and how it fits the data
+
+```{r}
+plot(sales~price,data=oj,col=brandcol[oj$brand])
+abline(m1,lwd=3)
+```
+Not the best fit rigth?  We know from above that we have better options so let's take a look at using the transformations (i.e feature engineering) to leverage better insight.
+
+
+Another option we have to fit this data is to look at
+
+$$
+\log(Sales)=\beta_0+\beta_1Price
+$$
+
+Now first thing you may ask yourself is why would you ever want to do this?  Well let me write it slightly different
+
+$$
+Sales=e^{\beta_0+\beta_1Price}
+$$
+Now we can see what it says is that sales moves exponentially with prices.  We would want to model this when we have multiplictive trends.  How do we know when that happens?  Well when the current value of something matters on an increase or decrease.  So think of this statement, "Foreclosed homes sell at a 20%-30% discount".  That's saying that the original price sets the standard and then we determine the new price off of that right.  In this case what if we say the decrease in sales could change at a different if you're current sales are \$100,000 than when it's \$500,000.  That's a multiplicitive trend.  
+
+We say we expect a $(e^{\beta_{1}}-1)*100\%$ change in Sales given Price is increased by one dollar in this model.  Again the intercept is just the expected Sales given $Price$ is 0, so not really a great meaning. Let's look at how we analyze this data.  
+
+```{r}
+m2<-lm(log(sales)~price,data=oj)
+summary(m2)
+```
+So looking at these results we see the prediction equation is
+
+$$
+\widehat{log(Sales)}=10.718-0.679558*Price
+$$
+Or
+
+$$
+\widehat{Sales}=e^{10.718-0.679558*Price}
+$$
+
+Now if we interpret this we can say that we see a $(e^{-0.679558}-1)\%$ change in sales given price increase \$1.  If we just do that calculation we get 
+```{r}
+exp(-.679558)-1
+```
+Which is about a 49\% decrease in the sales.  Looking at this on a plot we see that is
+
+```{r}
+plot(log(sales)~price,data=oj,col=brandcol[oj$brand])
+abline(m2)
+```
+
+
+The last way we can look at this data is to think of it in what is called a log-log model.  That is 
+
+$$
+log(Sales)=\beta_0+\beta_1log(Price)+\epsilon
+$$
+
+Where this is useful is when a precentage change in the predictor causes a precentage change in the response.  So if we look at it like this
+
+$$
+\widehat{Sales}=e^{\beta_0}Price^{\beta_1}
+$$
+So it allows us to model non linear trends and complexity in data.  The way we interpret $\beta_1$ (the slope) in this model is for every 1\% increase in Price we see sales increase by $\beta_1$\%.  Simple enough and really powerful to say.  Again the intercept doesn't really help because it describes a price of 0.  Let's analyze the data this way.
+
+```{r}
+m3=lm(log(sales)~log(price),data=oj)
+summary(m3)
+```
+So we have that
+
+$$
+\widehat{log(Sales)}=10.42342-1.60131*log(Price)
+$$
+
+Or
+
+$$
+\widehat{Sales}=e^{10.42342}Price^{-1.60131}.
+$$
+So what this means is that if we increase Price by 1\% we expect to see a 1.6\% decrease in Sales.  Really nice statement to be able to make for someone to understand.  Now let's look at it. 
+
+```{r}
+plot(log(sales)~log(price),data=oj,col=brandcol[oj$brand])
+abline(m3)
+```
+
+
+Now let's take a quick look at how each of these fits on the original data.  To do this we're going to look across the spectrum of prices from 0 to 4 (thats our min and max prices in the data) and then look at what the curve shows on the original data.
+
+First I'll create predictions for each model so we can have predicted values across the space since we can't plot the transformation on the original data with abline. Since m2 and m3 have log responses we need to raise them to the exponent.  
+
+```{r}
+x=seq(0.0001,4, by=.001)
+m1p=predict(m1,newdata=data.frame(price=x))
+m2p=exp(predict(m2,newdata=data.frame(price=x)))
+m3p=exp(predict(m3,newdata=data.frame(price=x)))
+```
+
+
+Next we're going to create each line in a way that allows us to see it on the original data
+
+```{r}
+plot(sales~price,data=oj)
+lines(m1p~x,col=4)
+lines(m2p~x,col=5,lwd=3)
+lines(m3p~x,col=6,lwd=4)
+```
+
+Dark blue is the straight line, the light blue is the log response, and the purple is log-log.  Which one would you pick?  How would you decide? 
+
